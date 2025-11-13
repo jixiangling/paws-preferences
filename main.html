@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Paws & Preferences: Find Your Favourite Kitty</title>
+  <meta name="description" content="Swipe right for like, left for dislike. Discover your favourite cats (powered by CATAAS)." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0b0e14;
+      --card:#111827;
+      --muted:#94a3b8;
+      --accent:#f59e0b;
+      --like:#10b981;
+      --nope:#ef4444;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;}
+    body{
+      margin:0;
+      background:radial-gradient(60% 60% at 50% 0%, #111827 0%, #0b0e14 60%);
+      color:#e5e7eb;
+      font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .app{
+      width:100%; max-width:480px; height:100vh; max-height:900px; padding:16px; position:relative;
+      display:flex; flex-direction:column; gap:12px;
+    }
+    header{display:flex; align-items:center; justify-content:space-between;}
+    .brand{display:flex; align-items:center; gap:10px;}
+    .brand .logo{width:36px; height:36px; border-radius:12px; background:linear-gradient(135deg,#f59e0b, #f43f5e); display:grid; place-items:center; font-weight:700;}
+    .brand .title{font-weight:700; letter-spacing:.2px}
+    .hint{font-size:12px; color:var(--muted)}
+
+    .stack{
+      position:relative; flex:1; overflow:visible; perspective:1200px; user-select:none;
+    }
+    .card{
+      position:absolute; inset:0; border-radius:22px; box-shadow:0 12px 40px rgba(0,0,0,.45);
+      background:var(--card) center/cover no-repeat; border:1px solid rgba(255,255,255,.06);
+      transform-origin: 50% 90%;
+      touch-action:none;
+      display:flex; align-items:flex-end; justify-content:space-between; padding:14px;
+    }
+    .badge{position:absolute; top:16px; padding:8px 12px; border-radius:999px; font-weight:700; letter-spacing:.5px; border:2px solid currentColor; backdrop-filter: blur(6px);}
+    .badge.like{left:16px; color:var(--like);}
+    .badge.nope{right:16px; color:var(--nope);}
+
+    .footer{
+      display:grid; grid-template-columns:1fr auto 1fr; gap:12px; align-items:center; padding-top:4px;
+    }
+    .btn{
+      height:54px; border-radius:999px; border:1px solid rgba(255,255,255,.12); background:#0f172a; color:#e5e7eb;
+      display:flex; align-items:center; justify-content:center; gap:10px; font-weight:600; cursor:pointer;
+      box-shadow:0 6px 16px rgba(0,0,0,.35); transition:transform .12s ease, background .2s ease; user-select:none;
+    }
+    .btn:active{transform:scale(.98)}
+    .btn.primary{background:linear-gradient(135deg,#0ea5e9,#6366f1)}
+
+    .round{width:64px; height:64px; border-radius:50%}
+    .round.like{border-color:rgba(16,185,129,.4)}
+    .round.nope{border-color:rgba(239,68,68,.4)}
+
+    .progress{height:6px; width:100%; background:rgba(255,255,255,.08); border-radius:999px; overflow:hidden}
+    .progress > span{display:block; height:100%; width:0%; background:linear-gradient(90deg,#f59e0b,#f43f5e); transition:width .25s ease}
+
+    .summary{position:absolute; inset:0; border-radius:22px; background:rgba(15,23,42,.8); backdrop-filter: blur(8px); display:none; flex-direction:column; padding:18px; overflow:auto}
+    .summary.visible{display:flex}
+    .summary h2{margin:6px 0 14px 0}
+    .grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
+    .grid img{width:100%; height:180px; object-fit:cover; border-radius:12px; border:1px solid rgba(255,255,255,.08)}
+    .pill{display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.06); color:#fff; font-size:12px; border:1px solid rgba(255,255,255,.08)}
+
+    .empty{opacity:.85; color:var(--muted)}
+
+    @media (min-height:900px){ .grid img{height:220px} }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="brand">
+        <div class="logo">🐾</div>
+        <div>
+          <div class="title">Paws & Preferences</div>
+          <div class="hint">Swipe right to Like · left to Pass</div>
+        </div>
+      </div>
+      <button id="resetBtn" class="btn" title="Restart" aria-label="Restart">Restart</button>
+    </header>
+
+    <div class="stack" id="cardStack" aria-live="polite" aria-atomic="true"></div>
+
+    <div class="footer">
+      <button id="noBtn" class="btn round nope" aria-label="Dislike">✖</button>
+      <div class="progress" aria-hidden="true"><span id="progressBar"></span></div>
+      <button id="yesBtn" class="btn round like" aria-label="Like">❤</button>
+    </div>
+
+    <section id="summary" class="summary" role="region" aria-label="Summary">
+      <h2>Summary</h2>
+      <p id="summaryText" class="pill"></p>
+      <div id="likedGrid" class="grid"></div>
+      <p id="emptyMsg" class="empty" style="display:none">You didn't like any cats this round. Try another deck!</p>
+      <div style="margin-top:auto; display:flex; gap:10px;">
+        <button id="againBtn" class="btn primary" style="flex:1">Shuffle another deck</button>
+        <button id="shareBtn" class="btn" style="flex:1">Share results</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+  (function(){
+    const TOTAL = 16; // 10–20 as per brief
+    const WIDTH = 600, HEIGHT = 800; // request size from CATAAS (it will crop)
+    const stack = document.getElementById('cardStack');
+    const progress = document.getElementById('progressBar');
+    const summary = document.getElementById('summary');
+    const likedGrid = document.getElementById('likedGrid');
+    const summaryText = document.getElementById('summaryText');
+    const emptyMsg = document.getElementById('emptyMsg');
+    const yesBtn = document.getElementById('yesBtn');
+    const noBtn = document.getElementById('noBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const againBtn = document.getElementById('againBtn');
+    const shareBtn = document.getElementById('shareBtn');
+
+    let deck = [];
+    let liked = [];
+    let index = 0; // count of handled cards
+
+    const rnd = () => Math.random().toString(36).slice(2);
+
+    function buildDeck(count){
+      const urls = [];
+      for(let i=0;i<count;i++){
+        // Use CATAAS random cats; enforce width/height and add random to defeat cache
+        const u = `https://cataas.com/cat?width=${WIDTH}&height=${HEIGHT}&type=square&_=${Date.now()}_${i}_${rnd()}`;
+        urls.push(u);
+      }
+      return urls;
+    }
+
+    function preload(urls){
+      return Promise.all(urls.map(u=>new Promise(res=>{ const img=new Image(); img.onload=()=>res(u); img.onerror=()=>res(u); img.src=u; })));
+    }
+
+    function createCard(url, z){
+      const card = document.createElement('div');
+      card.className='card';
+      card.style.backgroundImage = `url('${url}')`;
+      card.style.zIndex = String(100+z);
+
+      const likeBadge = document.createElement('div');
+      likeBadge.className='badge like'; likeBadge.textContent='LIKE'; likeBadge.style.opacity=0; card.appendChild(likeBadge);
+      const nopeBadge = document.createElement('div');
+      nopeBadge.className='badge nope'; nopeBadge.textContent='NOPE'; nopeBadge.style.opacity=0; card.appendChild(nopeBadge);
+
+      attachDrag(card, url, likeBadge, nopeBadge);
+      return card;
+    }
+
+    function layoutStack(){
+      // small fanning/scale for depth effect
+      const cards = Array.from(stack.children);
+      cards.forEach((c,i)=>{
+        const offset = cards.length-1 - i;
+        c.style.transform = `translateY(${offset*6}px) scale(${1 - offset*0.02})`;
+        c.style.opacity = String(1 - offset*0.06);
+      });
+    }
+
+    function attachDrag(card, url, likeBadge, nopeBadge){
+      let startX=0, startY=0, currentX=0, currentY=0, dragging=false;
+      let pointerId=null;
+
+      const onDown = (e)=>{
+        const p = getPoint(e);
+        pointerId = p.pointerId;
+        startX = p.x; startY = p.y; dragging=true; card.setPointerCapture?.(pointerId);
+      };
+      const onMove = (e)=>{
+        if(!dragging) return; const p = getPoint(e);
+        currentX = p.x - startX; currentY = p.y - startY;
+        const rot = currentX * 0.05;
+        card.style.transform = `translate(${currentX}px, ${currentY}px) rotate(${rot}deg)`;
+        const likeOpacity = clamp(map(currentX, 0, 140, 0, 1));
+        const nopeOpacity = clamp(map(currentX, 0, -140, 0, 1));
+        likeBadge.style.opacity = likeOpacity;
+        nopeBadge.style.opacity = nopeOpacity;
+      };
+      const onUp = ()=>{
+        if(!dragging) return; dragging=false; card.releasePointerCapture?.(pointerId);
+        const threshold = 100; // px
+        if(currentX > threshold){ swipeOut('right'); }
+        else if(currentX < -threshold){ swipeOut('left'); }
+        else { // snap back
+          card.style.transition='transform .25s ease';
+          card.style.transform=''; likeBadge.style.opacity=0; nopeBadge.style.opacity=0;
+          card.addEventListener('transitionend', ()=>{ card.style.transition=''; layoutStack(); }, {once:true});
+        }
+      };
+
+      function swipeOut(dir){
+        card.style.transition='transform .28s ease, opacity .28s ease';
+        const toX = (dir==='right')? window.innerWidth*1.2 : -window.innerWidth*1.2;
+        const toY = currentY + (Math.random()*80-40);
+        card.style.transform = `translate(${toX}px, ${toY}px) rotate(${dir==='right'? 25 : -25}deg)`;
+        card.style.opacity = 0;
+        likeBadge.style.opacity = dir==='right'?1:0; nopeBadge.style.opacity = dir==='left'?1:0;
+        card.addEventListener('transitionend', ()=>{
+          card.remove();
+          if(dir==='right') liked.push(url);
+          index++;
+          updateProgress();
+          nextIfDone();
+          layoutStack();
+        }, {once:true});
+      }
+
+      card.addEventListener('pointerdown', onDown);
+      card.addEventListener('pointermove', onMove);
+      card.addEventListener('pointerup', onUp);
+      card.addEventListener('pointercancel', onUp);
+
+      // keyboard support for accessibility
+      card.tabIndex = 0;
+      card.addEventListener('keydown', (e)=>{
+        if(e.key==='ArrowRight') swipeOut('right');
+        if(e.key==='ArrowLeft') swipeOut('left');
+      });
+    }
+
+    function updateProgress(){
+      const pct = Math.min(100, Math.round((index/deck.length)*100));
+      progress.style.width = pct + '%';
+    }
+
+    function nextIfDone(){
+      if(index >= deck.length){
+        showSummary();
+      }
+    }
+
+    function showSummary(){
+      summary.classList.add('visible');
+      likedGrid.innerHTML = '';
+      if(liked.length){
+        emptyMsg.style.display='none';
+        liked.forEach(u=>{
+          const img = document.createElement('img'); img.src=u; img.alt='Liked cat'; likedGrid.appendChild(img);
+        });
+      } else {
+        emptyMsg.style.display='block';
+      }
+      summaryText.textContent = `You liked ${liked.length} / ${deck.length} cats`;
+    }
+
+    function hideSummary(){ summary.classList.remove('visible'); }
+
+    async function bootstrap(newSeed=true){
+      hideSummary();
+      stack.innerHTML=''; liked=[]; index=0; updateProgress();
+      deck = buildDeck(TOTAL);
+      await preload(deck);
+      // build in reverse so the first URL ends up on top
+      [...deck].reverse().forEach((url,i)=> stack.appendChild(createCard(url, i)));
+      layoutStack();
+      // announce for screen readers
+      stack.setAttribute('aria-label', `Loaded ${deck.length} cats. Swipe to choose.`);
+    }
+
+    // buttons
+    yesBtn.addEventListener('click', ()=> actionTop('right'));
+    noBtn.addEventListener('click', ()=> actionTop('left'));
+    resetBtn.addEventListener('click', ()=> bootstrap());
+    againBtn.addEventListener('click', ()=> bootstrap());
+
+    shareBtn.addEventListener('click', async ()=>{
+      const text = `I liked ${liked.length} / ${deck.length} cats on Paws & Preferences! 🐾`;
+      try{
+        if(navigator.share){ await navigator.share({title:'Paws & Preferences', text}); }
+        else {
+          await navigator.clipboard.writeText(text);
+          shareBtn.textContent = 'Copied!'; setTimeout(()=> shareBtn.textContent='Share results', 1200);
+        }
+      }catch{ /* ignore */ }
+    });
+
+    function actionTop(dir){
+      const top = stack.lastElementChild; if(!top) return;
+      // simulate a swipe by setting offsets and triggering our internal handler
+      const evt = new PointerEvent('pointerdown', {bubbles:true});
+      top.dispatchEvent(evt);
+      const dx = (dir==='right'? 140 : -140), dy = 0;
+      const move = new PointerEvent('pointermove', {bubbles:true, clientX:dx, clientY:dy});
+      top.dispatchEvent(move);
+      const up = new PointerEvent('pointerup', {bubbles:true});
+      top.dispatchEvent(up);
+    }
+
+    // helpers
+    function getPoint(e){
+      const t = e.touches?.[0];
+      return {
+        x: t? t.clientX : (e.clientX ?? 0),
+        y: t? t.clientY : (e.clientY ?? 0),
+        pointerId: e.pointerId ?? 1
+      };
+    }
+    const clamp=(n,min=0,max=1)=> Math.max(min, Math.min(max, n));
+    const map=(x,inMin,inMax,outMin,outMax)=> {
+      const t = (x-inMin)/(inMax-inMin); return outMin + t*(outMax-outMin);
+    };
+
+    // kick off
+    bootstrap();
+  })();
+  </script>
+</body>
+</html>
